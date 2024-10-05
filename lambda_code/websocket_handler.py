@@ -49,7 +49,7 @@ def lambda_handler(event, context):
         return handle_connect(event)
     elif route_key == '$disconnect':
         return handle_disconnect(event)
-    elif action == "get_messages":
+    elif route_key == "get_messages":
         return get_messages(event)
     else:
         return handle_default(event)
@@ -145,9 +145,11 @@ def handle_default(event):
     # Update both users' inboxes with the message thread info
     update_inbox(from_user, to_user, thread_id, msg_body.get("message"))
     update_inbox(to_user, from_user, thread_id, msg_body.get("message"))
+    print(f"Quering for #user#{to_user}#")
     response = con_table.query(
             KeyConditionExpression=Key('PK').eq("#conn")& Key('SK').begins_with(f"#user#{to_user}#")
         )
+    print(response)
     to_connection_id = None
     for item in response['Items']:
         print(item)
@@ -179,17 +181,19 @@ def send_message(connection_id, message, event):
     apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=api_gateway_management_url)
     
     try:
-        # Send the message to the connection ID
-        apigw_client.post_to_connection(
-            ConnectionId=connection_id,
-            Data=json.dumps(message)  # The data must be a string or binary data
-        )
-        print(f"Message sent to connection: {connection_id}")
+        if connection_id:
+            # Send the message to the connection ID
+            apigw_client.post_to_connection(
+                ConnectionId=connection_id,
+                Data=json.dumps(message)  # The data must be a string or binary data
+            )
+            print(f"Message sent to connection: {connection_id}")
+        else:
+            print("Receiver is not on line skipping sending to socket")
     
     except ClientError as e:
         # Handle potential errors
         print(f"Error sending message: {str(e)}")
-        raise e
 
 def update_inbox(user_id, other_user_id, thread_id, message_content):
     """
